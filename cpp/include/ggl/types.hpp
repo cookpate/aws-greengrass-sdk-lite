@@ -1,7 +1,7 @@
 #ifndef GGL_TYPES_HPP
 #define GGL_TYPES_HPP
 
-#include "ggl/error.hpp"
+#include <ggl/error.hpp>
 #include <cstddef>
 #include <cstdint>
 

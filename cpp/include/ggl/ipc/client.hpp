@@ -1,7 +1,7 @@
 #ifndef GGL_IPC_CLIENT_HPP
 #define GGL_IPC_CLIENT_HPP
 
-#include "ggl/error.hpp"
+#include <ggl/error.hpp>
 #include <string_view>
 
 namespace ggl {

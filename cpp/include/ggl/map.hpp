@@ -1,14 +1,14 @@
 #ifndef GGL_MAP_HPP
 #define GGL_MAP_HPP
 
-#include "ggl/buffer.hpp"
-#include "ggl/types.hpp"
-#include "ggl/utility.hpp"
-#include <algorithm>
+#include <ggl/buffer.hpp>
+#include <ggl/types.hpp>
+#include <ggl/utility.hpp>
 #include <cstdint>
+#include <algorithm>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
-#include <stdexcept>
 
 namespace ggl {
 

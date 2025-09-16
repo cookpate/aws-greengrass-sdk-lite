@@ -1,0 +1,11 @@
+---
+BasedOnStyle: InheritParentConfig
+IncludeCategories:
+  - Regex: '^".*"$'
+    Priority: 1
+  - Regex: "^<cstd.*>$"
+    Priority: 3
+  - Regex: "^<.*[.].*>$"
+    Priority: 2
+  - Regex: "^<.*>$"
+    Priority: 4

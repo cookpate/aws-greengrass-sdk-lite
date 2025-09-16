@@ -1,6 +1,6 @@
-#include "ggl/map.hpp"
-#include "ggl/object.hpp"
-#include "ggl/types.hpp"
+#include <ggl/map.hpp>
+#include <ggl/object.hpp>
+#include <ggl/types.hpp>
 
 namespace ggl {
 

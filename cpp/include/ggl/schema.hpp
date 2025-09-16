@@ -1,9 +1,9 @@
 #ifndef GGL_SCHEMA_HPP
 #define GGL_SCHEMA_HPP
 
-#include "ggl/error.hpp"
-#include "ggl/map.hpp"
-#include "ggl/object.hpp"
+#include <ggl/error.hpp>
+#include <ggl/map.hpp>
+#include <ggl/object.hpp>
 #include <ggl/types.hpp>
 #include <optional>
 #include <string_view>
