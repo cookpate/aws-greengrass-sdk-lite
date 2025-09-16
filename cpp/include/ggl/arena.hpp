@@ -1,8 +1,8 @@
 #ifndef GGL_ARENA_HPP
 #define GGL_ARENA_HPP
 
-#include "ggl/types.hpp"
-#include "ggl/utility.hpp"
+#include <ggl/types.hpp>
+#include <ggl/utility.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <utility>

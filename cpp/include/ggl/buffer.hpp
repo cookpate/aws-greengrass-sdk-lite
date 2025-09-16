@@ -1,14 +1,14 @@
 #ifndef GGL_BUFFER_HPP
 #define GGL_BUFFER_HPP
 
-#include "ggl/types.hpp"
-#include "ggl/utility.hpp"
+#include <ggl/types.hpp>
+#include <ggl/utility.hpp>
 #include <cstdint>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <stdexcept>
 
 namespace ggl {
 

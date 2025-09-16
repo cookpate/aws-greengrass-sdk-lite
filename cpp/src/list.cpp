@@ -1,5 +1,5 @@
-#include "ggl/list.hpp"
-#include "ggl/object.hpp"
+#include <ggl/list.hpp>
+#include <ggl/object.hpp>
 
 namespace ggl {
 

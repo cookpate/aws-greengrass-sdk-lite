@@ -1,9 +1,9 @@
-#include <array>
 #include <ggl/buffer.hpp>
 #include <ggl/map.hpp>
 #include <ggl/object.hpp>
 #include <ggl/schema.hpp>
 #include <ggl/types.hpp>
+#include <array>
 #include <ios>
 #include <iostream>
 #include <optional>

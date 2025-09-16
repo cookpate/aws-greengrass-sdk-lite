@@ -1,4 +1,4 @@
-#include "ggl/error.hpp"
+#include <ggl/error.hpp>
 #include <system_error>
 
 extern "C" {

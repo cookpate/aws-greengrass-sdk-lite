@@ -1,12 +1,12 @@
 #ifndef GGL_LIST_HPP
 #define GGL_LIST_HPP
 
-#include "ggl/error.hpp"
-#include "ggl/types.hpp"
-#include "ggl/utility.hpp"
+#include <ggl/error.hpp>
+#include <ggl/types.hpp>
+#include <ggl/utility.hpp>
 #include <cstddef>
-#include <type_traits>
 #include <stdexcept>
+#include <type_traits>
 
 namespace ggl {
 

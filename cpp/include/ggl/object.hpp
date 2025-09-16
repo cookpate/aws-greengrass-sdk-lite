@@ -1,15 +1,15 @@
 #ifndef GGL_OBJECT_HPP
 #define GGL_OBJECT_HPP
 
-#include "ggl/buffer.hpp"
-#include "ggl/error.hpp"
-#include "ggl/list.hpp"
-#include "ggl/map.hpp"
-#include "ggl/types.hpp"
-#include "ggl/utility.hpp"
-#include <concepts>
+#include <ggl/buffer.hpp>
+#include <ggl/error.hpp>
+#include <ggl/list.hpp>
+#include <ggl/map.hpp>
+#include <ggl/types.hpp>
+#include <ggl/utility.hpp>
 #include <cstdint>
 #include <cstdlib>
+#include <concepts>
 #include <span>
 #include <string_view>
 #include <type_traits>
