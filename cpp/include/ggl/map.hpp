@@ -273,7 +273,7 @@ public:
     }
 };
 
-}
+} // namespace ggl
 
 static_assert(
     std::is_standard_layout_v<ggl::KV>,
