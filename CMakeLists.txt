@@ -13,6 +13,8 @@ if(PROJECT_IS_TOP_LEVEL)
 
   option(BUILD_SAMPLES "Build sample components" ON)
 
+  option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
   include(GNUInstallDirs)
@@ -166,7 +168,8 @@ foreach(src ${SRCS})
     PROPERTY COMPILE_FLAGS "-frandom-seed=${src}")
 endforeach()
 
-add_library(ggl-sdk STATIC ${SRCS})
+add_library(ggl-sdk ${SRCS})
+
 target_compile_options(ggl-sdk PRIVATE -pthread -fno-strict-aliasing -std=gnu11
                                        -Wno-missing-braces)
 target_compile_definitions(ggl-sdk PRIVATE _GNU_SOURCE)
