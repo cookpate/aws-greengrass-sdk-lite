@@ -47,6 +47,22 @@ public:
     }
 };
 
+class AuthToken {
+    std::string_view token;
+
+public:
+    constexpr AuthToken() noexcept = default;
+
+    explicit constexpr AuthToken(std::string_view token) noexcept
+        : token { token } { };
+
+    explicit operator Buffer() const noexcept {
+        return Buffer { token };
+    }
+
+    static std::optional<AuthToken> from_environment() noexcept;
+};
+
 class Client {
 private:
     constexpr Client() noexcept = default;
@@ -62,7 +78,7 @@ public:
     std::error_code connect() noexcept;
 
     std::error_code connect(
-        std::string_view socket_path, std::string_view auth_token
+        std::string_view socket_path, AuthToken auth_token
     ) noexcept;
 
     std::error_code publish_to_topic(

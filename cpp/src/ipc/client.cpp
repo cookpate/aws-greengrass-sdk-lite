@@ -9,6 +9,7 @@
 #include <ggl/map.hpp>
 #include <stdint.h>
 #include <cstdlib>
+#include <optional>
 #include <string_view>
 #include <system_error>
 
@@ -16,30 +17,38 @@ enum class GglComponentState;
 
 namespace ggl::ipc {
 
-std::error_code Client::connect() noexcept {
+std::optional<AuthToken> AuthToken::from_environment() noexcept {
     // C++ std::getenv has stronger thread-safety guarantees than C's
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     char *svcuid = std::getenv("SVCUID");
+    // std::string_view nullptr ctor is UB (deleted in C++23)
     if (svcuid == nullptr) {
+        return std::nullopt;
+    }
+    return AuthToken { svcuid };
+}
+
+std::error_code Client::connect() noexcept {
+    auto auth_token = AuthToken::from_environment();
+    if (!auth_token.has_value()) {
         return GGL_ERR_CONFIG;
     }
 
     char *socket_path
         // NOLINTNEXTLINE(concurrency-mt-unsafe)
         = std::getenv("AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT");
-
     if (socket_path == nullptr) {
         return GGL_ERR_CONFIG;
     }
 
-    return connect(svcuid, socket_path);
+    return connect(socket_path, *auth_token);
 }
 
 // singleton interface class.
 // NOLINTBEGIN(readability-convert-member-functions-to-static)
 
 std::error_code Client::connect(
-    std::string_view socket_path, std::string_view auth_token
+    std::string_view socket_path, AuthToken auth_token
 ) noexcept {
     return ggipc_connect_with_token(
         Buffer { socket_path }, Buffer { auth_token }
