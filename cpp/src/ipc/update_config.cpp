@@ -9,7 +9,7 @@
 #include <ggl/object.hpp>
 #include <chrono>
 #include <ctime>
-#include <ratio>
+#include <ratio> // IWYU pragma: keep (duration uses ratio)
 #include <span>
 #include <system_error>
 

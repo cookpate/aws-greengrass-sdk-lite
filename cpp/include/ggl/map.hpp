@@ -14,7 +14,7 @@
 #include <iterator>
 #include <span>
 #include <stdexcept>
-#include <string>
+#include <string> // IWYU pragma: keep (std::char_traits)
 #include <string_view>
 #include <type_traits>
 #include <utility>

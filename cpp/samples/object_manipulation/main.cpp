@@ -8,7 +8,7 @@
 #include <iostream>
 #include <optional>
 #include <span>
-#include <string>
+#include <string> // IWYU pragma: keep (operator<<)
 #include <string_view>
 #include <system_error>
 #include <variant>
