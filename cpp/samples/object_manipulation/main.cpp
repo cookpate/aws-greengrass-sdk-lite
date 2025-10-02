@@ -1,4 +1,3 @@
-#include <ggl/buffer.hpp>
 #include <ggl/list.hpp>
 #include <ggl/map.hpp>
 #include <ggl/object.hpp>
@@ -21,15 +20,14 @@ int main() {
     std::array list { ggl::Object { "15" },
                       ggl::Object { 24 },
                       ggl::Object { 4.0 } };
-    std::array pairs { ggl::KV { "key", false },
+    std::array pairs { ggl::KV { "key", ggl::Object { false } },
                        ggl::KV { "another key", "Value" },
                        ggl::KV { "key3", "Anything" },
                        ggl::KV { "key4", 25 },
                        ggl::KV { "key5",
                                  ggl::List { list.data(), list.size() } } };
     ggl::Map map { pairs.data(), pairs.size() };
-    ggl::Buffer buffer { "thing" };
-    std::array items { ggl::Object { buffer },
+    std::array items { ggl::Object { "String value" },
                        ggl::Object { map },
                        ggl::Object { 10.0F } };
 

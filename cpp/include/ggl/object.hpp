@@ -98,6 +98,7 @@ public:
     }
 
     Object(std::integral auto i64) noexcept
+        requires(!std::is_same_v<bool, std::remove_cv_t<decltype(i64)>>)
         : GglObject { ggl_obj_i64(static_cast<int64_t>(i64)) } {
     }
 
@@ -119,7 +120,7 @@ public:
 
     template <size_t N>
     Object(const char (&arr)[N]) noexcept
-        : Object { std::string_view { arr, N } } {
+        : Object { std::string_view { arr } } {
     }
 
     Object(List list) noexcept
