@@ -5,3 +5,5 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.StructCase
     value: aNy_CasE
+Checks:
+  - bugprone-multi-level-implicit-pointer-conversion
