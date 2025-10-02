@@ -69,7 +69,7 @@ GglError get_config_obj_callback(void *ctx, GglMap result) noexcept {
         return GGL_ERR_PARSE;
     }
 
-    size_t len;
+    size_t len = 0;
     error = ggl_obj_mem_usage(value, &len);
     if (error) {
         return GGL_ERR_INVALID;
@@ -136,7 +136,7 @@ namespace {
             params,
             fn,
             detail::get_config_error_callback,
-            &value
+            value
         );
     }
 
