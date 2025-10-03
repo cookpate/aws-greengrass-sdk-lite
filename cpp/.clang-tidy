@@ -5,5 +5,9 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.StructCase
     value: aNy_CasE
+  - key: bugprone-reserved-identifier.AllowedIdentifiers
+    value: ""
 Checks:
   - bugprone-multi-level-implicit-pointer-conversion
+  - bugprone-sizeof-container
+  - clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
