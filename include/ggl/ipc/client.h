@@ -36,6 +36,10 @@ GglError ggipc_connect_with_token(GglBuffer socket_path, GglBuffer auth_token);
 
 // IPC calls
 
+typedef struct {
+    uint32_t val;
+} DESIGNATED_INIT GglIpcSubscriptionHandle;
+
 /// Publish a message to a local topic in JSON format
 GglError ggipc_publish_to_topic_json(GglBuffer topic, GglMap payload);
 
@@ -124,5 +128,7 @@ GglError ggipc_update_state(GglComponentState state);
 
 /// Restart a component on the core device
 GglError ggipc_restart_component(GglBuffer component_name);
+
+void ggipc_close_subscription(GglIpcSubscriptionHandle handle);
 
 #endif

@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
 
@@ -50,10 +51,41 @@ typedef struct {
     void *ctx;
 } StreamHandler;
 
+static_assert(
+    GGL_IPC_MAX_STREAMS <= UINT16_MAX, "Max stream count must fit in 16 bits."
+);
+
+static uint16_t stream_state_generation[GGL_IPC_MAX_STREAMS] = { 0 };
 static int32_t stream_state_id[GGL_IPC_MAX_STREAMS] = { 0 };
 static StreamHandler stream_state_handler[GGL_IPC_MAX_STREAMS] = { 0 };
 
 static pthread_mutex_t stream_state_mtx = PTHREAD_MUTEX_INITIALIZER;
+
+static GglIpcSubscriptionHandle create_handle(uint16_t index) {
+    return (GglIpcSubscriptionHandle) {
+        .val = ((uint32_t) stream_state_generation[index] << 16U) | (index + 1U)
+    };
+}
+
+static GglError validate_handle(
+    GglIpcSubscriptionHandle handle, uint16_t *out_index
+) {
+    // Underflow ok; UINT16_MAX will fail bounds check
+    uint16_t handle_index = (uint16_t) ((handle.val & UINT16_MAX) - 1U);
+    uint16_t handle_generation = (uint16_t) (handle.val >> 16);
+
+    if (handle_index >= GGL_IPC_MAX_STREAMS) {
+        return GGL_ERR_INVALID;
+    }
+
+    if (handle_generation != stream_state_generation[handle_index]) {
+        GGL_LOGE("Generation mismatch for %" PRIu32 ".", handle.val);
+        return GGL_ERR_NOENTRY;
+    }
+
+    *out_index = handle_index;
+    return GGL_ERR_OK;
+}
 
 static GglError init_ipc_recv_thread(void);
 ACCESS(none, 1)
@@ -82,11 +114,11 @@ static GglError init_ipc_recv_thread(void) {
 }
 
 // Requires holding stream_state_mtx
-static bool get_stream_index_from_id(int32_t stream_id, size_t *index) {
+static bool get_stream_index_from_id(int32_t stream_id, uint16_t *index) {
     if (stream_id == 0) {
         return false;
     }
-    for (size_t i = 0; i < GGL_IPC_MAX_STREAMS; i++) {
+    for (uint16_t i = 0; i < GGL_IPC_MAX_STREAMS; i++) {
         if (stream_state_id[i] == stream_id) {
             *index = i;
             return true;
@@ -96,9 +128,10 @@ static bool get_stream_index_from_id(int32_t stream_id, size_t *index) {
 }
 
 // Requires holding stream_state_mtx
-static bool claim_stream_index(size_t *index) {
-    for (size_t i = 0; i < GGL_IPC_MAX_STREAMS; i++) {
+static bool claim_stream_index(uint16_t *index) {
+    for (uint16_t i = 0; i < GGL_IPC_MAX_STREAMS; i++) {
         if (stream_state_id[i] == 0) {
+            stream_state_generation[i]++;
             stream_state_id[i] = -1;
             *index = i;
             return true;
@@ -109,15 +142,16 @@ static bool claim_stream_index(size_t *index) {
 
 // Requires holding stream_state_mtx
 static void set_stream_index(
-    size_t index, int32_t stream_id, StreamHandler handler
+    uint16_t index, int32_t stream_id, StreamHandler handler
 ) {
     stream_state_id[index] = stream_id;
     stream_state_handler[index] = handler;
 }
 
 // Requires holding stream_state_mtx
-static void clear_stream_index(size_t index, int32_t stream_id) {
+static void clear_stream_index(uint16_t index, int32_t stream_id) {
     if (stream_state_id[index] == stream_id) {
+        stream_state_generation[index]++;
         stream_state_id[index] = 0;
         stream_state_handler[index] = (StreamHandler) { 0 };
     }
@@ -396,7 +430,7 @@ typedef struct {
 
 // Must hold stream_state_mtx
 static GglError response_handler(
-    size_t index,
+    uint16_t index,
     void *ctx,
     EventStreamCommonHeaders common_headers,
     EventStreamMessage msg
@@ -414,14 +448,25 @@ static GglError response_handler(
     if ((call_ctx->sub_callback == NULL) || (call_ctx->ret != GGL_ERR_OK)) {
         clear_stream_index(index, common_headers.stream_id);
     } else {
-        set_stream_index(
-            index,
-            common_headers.stream_id,
-            (StreamHandler) {
-                .fn = (void (*)(void)) call_ctx->sub_callback,
-                .ctx = call_ctx->sub_callback_ctx,
-            }
-        );
+        if ((common_headers.message_flags & EVENTSTREAM_TERMINATE_STREAM)
+            != 0) {
+            GGL_LOGE(
+                "Terminate stream received on stream_id %" PRIi32
+                " for initial subscription response.",
+                common_headers.stream_id
+            );
+            clear_stream_index(index, common_headers.stream_id);
+            call_ctx->ret = GGL_ERR_FAILURE;
+        } else {
+            set_stream_index(
+                index,
+                common_headers.stream_id,
+                (StreamHandler) {
+                    .fn = (void (*)(void)) call_ctx->sub_callback,
+                    .ctx = call_ctx->sub_callback_ctx,
+                }
+            );
+        }
     }
 
     call_ctx->ready = true;
@@ -446,6 +491,7 @@ GglError ggipc_call(
         error_callback,
         response_ctx,
         NULL,
+        NULL,
         NULL
     );
 }
@@ -458,7 +504,8 @@ GglError ggipc_subscribe(
     GgIpcErrorCallback *error_callback,
     void *response_ctx,
     GgIpcSubscribeCallback *sub_callback,
-    void *sub_callback_ctx
+    void *sub_callback_ctx,
+    GglIpcSubscriptionHandle *out_sub_handle
 ) {
     if (!connected()) {
         return GGL_ERR_NOCONN;
@@ -483,7 +530,7 @@ GglError ggipc_subscribe(
         .sub_callback_ctx = sub_callback_ctx,
     };
 
-    size_t stream_index;
+    uint16_t stream_index;
     int32_t stream_id = -1;
 
     GGL_MTX_SCOPE_GUARD(&stream_state_mtx);
@@ -544,7 +591,16 @@ GglError ggipc_subscribe(
         }
     }
 
-    return response_handler_ctx.ret;
+    if (response_handler_ctx.ret != GGL_ERR_OK) {
+        out_sub_handle->val = 0;
+        return response_handler_ctx.ret;
+    }
+
+    if (out_sub_handle != NULL) {
+        *out_sub_handle = create_handle(stream_index);
+    }
+
+    return GGL_ERR_OK;
 }
 
 static GglError call_sub_callback(
@@ -624,7 +680,11 @@ static GglError call_sub_callback(
     );
 }
 
-static GglError dispatch_incoming_packet(int conn) {
+static GglError dispatch_incoming_packet(
+    int conn, uint16_t *out_index, int32_t *out_stream_id
+) {
+    assert(out_stream_id != NULL);
+
     EventStreamMessage msg;
     GglError ret = eventsteam_get_packet(
         ggl_socket_reader(&conn), &msg, GGL_BUF(ipc_recv_mem)
@@ -648,7 +708,7 @@ static GglError dispatch_incoming_packet(int conn) {
         return GGL_ERR_FAILURE;
     }
 
-    size_t index;
+    uint16_t index;
 
     {
         GGL_MTX_SCOPE_GUARD(&stream_state_mtx);
@@ -664,6 +724,9 @@ static GglError dispatch_incoming_packet(int conn) {
             return GGL_ERR_OK;
         }
 
+        *out_stream_id = stream_id;
+        *out_index = index;
+
         assert(stream_state_handler[index].fn != NULL);
 
         if (stream_state_handler[index].fn
@@ -672,6 +735,13 @@ static GglError dispatch_incoming_packet(int conn) {
             return response_handler(
                 index, stream_state_handler[index].ctx, common_headers, msg
             );
+        }
+
+        if ((common_headers.message_flags & EVENTSTREAM_TERMINATE_STREAM)
+            != 0) {
+            GGL_LOGD("Closing stream %" PRIi32 " for %d", stream_id, conn);
+            clear_stream_index(index, stream_state_id[index]);
+            return GGL_ERR_OK;
         }
     }
 
@@ -685,12 +755,28 @@ static GglError dispatch_incoming_packet(int conn) {
     // TODO: Terminate stream if flag set
 }
 
+void ggipc_close_subscription(GglIpcSubscriptionHandle handle) {
+    uint16_t index;
+
+    {
+        GGL_MTX_SCOPE_GUARD(&stream_state_mtx);
+        GglError ret = validate_handle(handle, &index);
+        if (ret != GGL_ERR_OK) {
+            return;
+        }
+        clear_stream_index(index, stream_state_id[index]);
+    }
+}
+
 ACCESS(none, 1)
 static GglError data_ready_callback(void *ctx, uint64_t data) {
     (void) ctx;
     (void) data;
 
-    GglError ret = dispatch_incoming_packet(ipc_conn_fd);
+    uint16_t index = 0;
+    int32_t stream_id = 0;
+
+    GglError ret = dispatch_incoming_packet(ipc_conn_fd, &index, &stream_id);
 
     if (ret != GGL_ERR_OK) {
         GGL_LOGE(
@@ -698,7 +784,13 @@ static GglError data_ready_callback(void *ctx, uint64_t data) {
             "connection.",
             ipc_conn_fd
         );
-        (void) ggl_close(ipc_conn_fd);
+
+        if (stream_id == 0) {
+            (void) ggl_close(ipc_conn_fd);
+        } else if (index != 0) {
+            GGL_MTX_SCOPE_GUARD(&stream_state_mtx);
+            clear_stream_index(index, stream_id);
+        }
     }
 
     return ret;

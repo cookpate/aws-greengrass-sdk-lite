@@ -7,6 +7,7 @@
 
 #include <ggl/buffer.h>
 #include <ggl/error.h>
+#include <ggl/ipc/client.h>
 #include <ggl/object.h>
 
 typedef GglError GgIpcResultCallback(void *ctx, GglMap result);
@@ -35,7 +36,8 @@ GglError ggipc_subscribe(
     GgIpcErrorCallback *error_callback,
     void *response_ctx,
     GgIpcSubscribeCallback *sub_callback,
-    void *sub_callback_ctx
+    void *sub_callback_ctx,
+    GglIpcSubscriptionHandle *out_sub_handle
 );
 
 #endif
