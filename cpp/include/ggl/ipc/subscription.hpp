@@ -1,8 +1,9 @@
 #ifndef GGL_IPC_SUBSCRIPTION_HPP
 #define GGL_IPC_SUBSCRIPTION_HPP
 
-#include <ggl/error.hpp>
-#include <ggl/ipc/client_c_api.hpp>
+#include <ggl/types.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <compare>
 #include <functional>
 #include <utility>
@@ -12,20 +13,6 @@ void ggipc_close_subscription(GgIpcSubscriptionHandle handle) noexcept;
 }
 
 namespace ggl::ipc {
-
-/// Holds a bound function associated with a subscription. Instances of
-/// SubscriptionCallback must outlive their associated subscription(s) (i.e.
-/// close() on the Subscription must be called before destroying its
-/// SubscriptionCallback). The subscription callback function for a bound
-/// subscription is called by exactly one other thread.
-class SubscriptionCallback {
-private:
-    /// TODO:
-    std::function<void(void)> callback;
-
-public:
-    /// TODO:
-};
 
 /// Subscription handle with std::unique_ptr semantics. The underlying
 /// handle has two copies; one is returned by a Client subscription method, and
@@ -137,7 +124,7 @@ public:
 /// Subscription hashing
 template <> class std::hash<ggl::ipc::Subscription> {
 public:
-    constexpr std::size_t operator()(
+    std::size_t operator()(
         const ggl::ipc::Subscription &subscription
     ) const noexcept {
         return std::hash<std::uint32_t> {}(subscription.get().val);
