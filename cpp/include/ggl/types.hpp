@@ -55,6 +55,10 @@ typedef enum {
     GGL_TYPE_MAP,
 } GglObjectType;
 
+typedef struct {
+    uint32_t val;
+} GgIpcSubscriptionHandle;
+
 enum class GglComponentState {
     RUNNING,
     ERRORED
