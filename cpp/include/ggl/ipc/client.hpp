@@ -6,6 +6,7 @@
 #define GGL_IPC_CLIENT_HPP
 
 #include <ggl/buffer.hpp>
+#include <ggl/list.hpp>
 #include <ggl/map.hpp>
 #include <ggl/object.hpp>
 #include <ggl/sdk.hpp>
@@ -22,6 +23,8 @@
 #include <utility>
 
 namespace ggl::ipc {
+
+class Subscription;
 
 /// Heap-allocated object. The result of some IPC operations.
 class AllocatedObject {
@@ -63,6 +66,32 @@ public:
     static std::optional<AuthToken> from_environment() noexcept;
 };
 
+class LocalTopicCallback {
+public:
+    virtual ~LocalTopicCallback() noexcept = default;
+    virtual void operator()(
+        std::string_view topic, ggl::Object payload, Subscription &handle
+    ) = 0;
+};
+
+class IotTopicCallback {
+public:
+    virtual ~IotTopicCallback() noexcept = default;
+    virtual void operator()(
+        std::string_view topic, ggl::Buffer payload, Subscription &handle
+    ) = 0;
+};
+
+class ConfigurationUpdateCallback {
+public:
+    virtual ~ConfigurationUpdateCallback() noexcept = default;
+    virtual void operator()(
+        std::string_view component_name,
+        ggl::List key_path,
+        Subscription &handle
+    ) = 0;
+};
+
 class Client {
 private:
     constexpr Client() noexcept = default;
@@ -89,8 +118,21 @@ public:
         std::string_view topic, const Map &json
     ) noexcept;
 
+    std::error_code subscribe_to_topic(
+        std::string_view topic,
+        LocalTopicCallback &callback,
+        Subscription *handle = nullptr
+    ) noexcept;
+
     std::error_code publish_to_iot_core(
         std::string_view topic, Buffer bytes, uint8_t qos
+    ) noexcept;
+
+    std::error_code subscribe_to_iot_core(
+        std::string_view topic_filter,
+        std::uint8_t qos,
+        IotTopicCallback &callback,
+        Subscription *handle = nullptr
     ) noexcept;
 
     std::error_code update_config(
@@ -131,6 +173,13 @@ public:
         std::span<const Buffer> key_path,
         std::optional<std::string_view> component_name,
         bool &value
+    ) noexcept;
+
+    std::error_code subscribe_to_configuration_update(
+        std::span<const Buffer> key_path,
+        std::optional<std::string_view> component_name,
+        ConfigurationUpdateCallback &callback,
+        Subscription *handle = nullptr
     ) noexcept;
 };
 

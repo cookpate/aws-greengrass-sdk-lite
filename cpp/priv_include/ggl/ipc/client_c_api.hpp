@@ -13,10 +13,6 @@ GglError ggipc_connect_with_token(
     GglBuffer socket_path, GglBuffer auth_token
 ) noexcept;
 
-typedef struct {
-    uint32_t val;
-} GgIpcSubscriptionHandle;
-
 GglError ggipc_publish_to_topic_json(GglBuffer topic, GglMap payload) noexcept;
 
 GglError ggipc_publish_to_topic_binary(
@@ -84,6 +80,21 @@ GglError ggipc_update_config(
 GglError ggipc_update_state(GglComponentState state) noexcept;
 
 GglError ggipc_restart_component(GglBuffer component_name);
+
+typedef void GgIpcSubscribeToConfigurationUpdateCallback(
+    void *ctx,
+    GglBuffer component_name,
+    GglList key_path,
+    GgIpcSubscriptionHandle handle
+);
+
+GglError ggipc_subscribe_to_configuration_update(
+    const GglBuffer *component_name,
+    GglBufList key_path,
+    GgIpcSubscribeToConfigurationUpdateCallback *callback,
+    void *ctx,
+    GgIpcSubscriptionHandle *handle
+);
 }
 
 #endif
