@@ -1,9 +1,11 @@
 #include <ggl/buffer.hpp>
 #include <ggl/ipc/client.hpp>
+#include <ggl/ipc/subscription.hpp>
 #include <ggl/object.hpp>
 #include <ggl/types.hpp>
 #include <chrono>
 #include <iostream>
+#include <random>
 #include <string_view>
 #include <system_error>
 #include <thread>
@@ -19,18 +21,27 @@ std::ostream &operator<<(std::ostream &os, const ggl::Buffer &buffer) {
 }
 
 class PubsubHandler : public ggl::ipc::LocalTopicCallback {
+private:
+    std::default_random_engine engine { static_cast<unsigned>(rand()) };
+
+public:
     void operator()(
         std::string_view topic,
         ggl::Object payload,
         ggl::ipc::Subscription &handle
     ) override {
-        (void) handle;
+        if (std::uniform_int_distribution<int> { 0, 100 }(engine) < 2) {
+            std::cout << "Closing subscription\n";
+            handle.close();
+        }
         std::cout << "Message received on " << topic << "\n";
         if (payload.index() == GGL_TYPE_MAP) {
             std::cout << "(ggl::Map of unknown schema)\n";
+            std::cout.flush();
             return;
         }
         std::cout << get<ggl::Buffer>(payload) << '\n';
+        std::cout.flush();
     }
 };
 
