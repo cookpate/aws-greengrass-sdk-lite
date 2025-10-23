@@ -815,5 +815,20 @@ void ggipc_close_subscription(GgIpcSubscriptionHandle handle) {
         return;
     }
 
+    int32_t stream_id = stream_state_id[index];
+    EventStreamHeader headers[] = {
+        { GGL_STR(":message-type"),
+          { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_APPLICATION_MESSAGE } },
+        { GGL_STR(":message-flags"),
+          { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_TERMINATE_STREAM } },
+        { GGL_STR(":stream-id"), { EVENTSTREAM_INT32, .int32 = stream_id } },
+    };
+    size_t headers_len = sizeof(headers) / sizeof(headers[0]);
+
+    GGL_LOGD(
+        "Sending subscription termination for stream id %" PRIi32 ".", stream_id
+    );
+    (void) ipc_send_packet(ipc_conn_fd, headers, headers_len, GGL_NULL_READER);
+
     clear_stream_index(index);
 }
