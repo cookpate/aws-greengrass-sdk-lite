@@ -5,7 +5,6 @@
 #include <ggl/types.hpp>
 #include <chrono>
 #include <iostream>
-#include <random>
 #include <string_view>
 #include <system_error>
 #include <thread>
@@ -22,7 +21,7 @@ std::ostream &operator<<(std::ostream &os, const ggl::Buffer &buffer) {
 
 class PubsubHandler : public ggl::ipc::LocalTopicCallback {
 private:
-    std::default_random_engine engine { static_cast<unsigned>(rand()) };
+    size_t response_counter {};
 
 public:
     void operator()(
@@ -30,7 +29,7 @@ public:
         ggl::Object payload,
         ggl::ipc::Subscription &handle
     ) override {
-        if (std::uniform_int_distribution<int> { 0, 100 }(engine) < 2) {
+        if (response_counter++ > 5) {
             std::cout << "Closing subscription\n";
             handle.close();
         }
@@ -77,6 +76,6 @@ int main(int argc, char *argv[]) {
         }
 
         using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1s);
+        std::this_thread::sleep_for(2s);
     }
 }

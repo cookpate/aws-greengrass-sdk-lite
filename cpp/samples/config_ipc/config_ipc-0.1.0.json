@@ -1,0 +1,45 @@
+{
+  "RecipeFormatVersion": "2020-01-25",
+  "ComponentName": "com.cpp.config_ipc",
+  "ComponentVersion": "0.1.0",
+  "ComponentType": "aws.greengrass.generic",
+  "ComponentDescription": "SDK Lite sample which exercises basic IPC.",
+  "ComponentPublisher": "AWS",
+  "ComponentConfiguration": {
+    "DefaultConfiguration": {
+      "accessControl": {
+        "aws.greengrass.ipc.pubsub": {
+          "com.cpp.config_ipc:pubsub:1": {
+            "policyDescription": "Allows access to publish to my/topic.",
+            "operations": ["aws.greengrass#PublishToTopic"],
+            "resources": ["/my/topic"]
+          }
+        }
+      },
+      "PublishCount": 10,
+      "Topic": "my/topic"
+    }
+  },
+  "Manifests": [
+    {
+      "Platform": {
+        "os": "linux"
+      },
+      "Name": "Linux",
+      "Lifecycle": {
+        "run": "{artifacts:path}/sample_config_ipc"
+      },
+      "Artifacts": [
+        {
+          "Uri": "s3://<bucket_name>/com.cpp.config_ipc/0.1.0/sample_config_ipc",
+          "Unarchive": "NONE",
+          "Permission": {
+            "Read": "OWNER",
+            "Execute": "OWNER"
+          }
+        }
+      ]
+    }
+  ],
+  "Lifecycle": {}
+}
