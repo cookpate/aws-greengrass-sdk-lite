@@ -54,6 +54,10 @@ int main(int argc, char *argv[]) {
     // handlers must be static lifetime if subscription handle is not held
     static PubsubHandler handler;
     error = client.subscribe_to_topic(topic, handler);
+    if (error) {
+        std::cerr << "Failed to subscribe to local topic (" << error << ")\n";
+        return 1;
+    }
 
     std::cout << "Attempting to publish to local topic: \"" << topic << "\"\n";
 
