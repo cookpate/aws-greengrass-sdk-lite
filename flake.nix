@@ -17,7 +17,9 @@
             ./src
             ./.clang-tidy
             ./.clangd
+            ./mock
             ./samples
+            ./test
             ./cpp/CMakeLists.txt
             ./cpp/include
             ./cpp/priv_include
@@ -43,6 +45,8 @@
             cmake
             cbmc
             cargo
+            pkg-config
+            unity-test
             rustc
             rustPlatform.bindgenHook
             clippy
@@ -200,6 +204,19 @@
                 dontInstall = true;
                 dontFixup = true;
                 allowSubstitutes = false;
+              };
+
+            unit-tests = { stdenv, unity-test, cmake, pkg-config, ninja, ... }:
+              stdenv.mkDerivation {
+                name = "check-unity-tests";
+                src = filteredSrc;
+                nativeBuildInputs = [ cmake pkg-config unity-test ninja ];
+                cmakeBuildType = "MinSizeRel";
+                cmakeFlags = [ "-DBUILD_TESTING=1" ];
+                postBuild = ''
+                  ctest --output-on-failure
+                '';
+                installPhase = "touch $out";
               };
 
             iwyu = pkgs: ''
