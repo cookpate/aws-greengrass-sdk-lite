@@ -49,9 +49,27 @@ if(aws-greengrass-sdk-lite_IS_TOP_LEVEL)
         SOURCE ${sample_dir}/main.cpp
         APPEND_STRING
         PROPERTY COMPILE_FLAGS "-frandom-seed=${sample_dir}/main.cpp")
-      add_executable(sample_${sample_name} ${sample_dir}/main.cpp)
-      target_link_libraries(sample_${sample_name} PRIVATE ggl-sdk++)
-      install(TARGETS sample_${sample_name})
+      add_executable(sample_cpp_${sample_name} ${sample_dir}/main.cpp)
+      target_link_libraries(sample_cpp_${sample_name} PRIVATE ggl-sdk++)
+      install(TARGETS sample_cpp_${sample_name})
+    endforeach()
+  endif()
+
+  if(BUILD_TESTING)
+    file(GLOB TEST_DIRS CONFIGURE_DEPENDS "test/*")
+    foreach(test_dir ${TEST_DIRS})
+      if(NOT IS_DIRECTORY ${test_dir})
+        continue()
+      endif()
+      get_filename_component(test_name ${test_dir} NAME_WLE)
+      set_property(
+        SOURCE ${test_dir}/main.cpp
+        APPEND_STRING
+        PROPERTY COMPILE_FLAGS "-frandom-seed=${test_dir}/main.cpp")
+      add_executable(test_cpp_${test_name} ${test_dir}/main.cpp)
+      target_link_libraries(test_cpp_${test_name}
+                            PRIVATE ggl-sdk++ ggl-ipc-mock PkgConfig::unity)
+      install(TARGETS test_cpp_${test_name})
     endforeach()
   endif()
 endif()

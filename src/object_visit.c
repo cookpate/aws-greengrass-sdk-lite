@@ -7,6 +7,7 @@
 #include <ggl/log.h>
 #include <ggl/map.h>
 #include <ggl/object.h>
+#include <ggl/object_iter.h>
 #include <ggl/object_visit.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -20,19 +21,6 @@ static_assert(
     GGL_MAX_OBJECT_SUBOBJECTS <= UINT8_MAX,
     "GGL_MAX_OBJECT_SUBOBJECTS must fit in a uint8_t."
 );
-
-typedef enum {
-    LEVEL_DEFAULT,
-    LEVEL_LIST,
-    LEVEL_MAP,
-} IterLevelState;
-
-typedef struct {
-    GglObject *obj[GGL_MAX_OBJECT_DEPTH];
-    uint8_t state[GGL_MAX_OBJECT_DEPTH];
-    uint8_t elem_index[GGL_MAX_OBJECT_DEPTH];
-    uint8_t index;
-} IterLevels;
 
 #define TRY_HANDLER(name, ...) \
     if (handlers->name != NULL) { \

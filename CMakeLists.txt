@@ -17,9 +17,16 @@ if(PROJECT_IS_TOP_LEVEL)
 
   option(BUILD_CPP "Build C++ library" ON)
 
+  option(BUILD_TESTING "Build C/C++ testing" OFF)
+
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
   include(GNUInstallDirs)
+
+  if(BUILD_TESTING)
+    find_package(PkgConfig REQUIRED)
+    pkg_search_module(unity REQUIRED IMPORTED_TARGET unity)
+  endif()
 
   # Put outputs in build/bin and build/lib
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
@@ -211,6 +218,39 @@ if(PROJECT_IS_TOP_LEVEL)
       add_executable(sample_${sample_name} ${sample_dir}/main.c)
       target_link_libraries(sample_${sample_name} PRIVATE ggl-sdk)
       install(TARGETS sample_${sample_name})
+    endforeach()
+  endif()
+
+  if(BUILD_TESTING)
+    include(CTest)
+    file(GLOB_RECURSE MOCKS CONFIGURE_DEPENDS "mock/*.c")
+    add_library(ggl-ipc-mock ${MOCKS})
+
+    target_compile_options(ggl-ipc-mock PRIVATE -pthread -fno-strict-aliasing
+                                                -std=gnu11 -Wno-missing-braces)
+    target_compile_definitions(ggl-ipc-mock PRIVATE _GNU_SOURCE)
+    target_include_directories(ggl-ipc-mock PRIVATE mock include priv_include)
+    target_include_directories(ggl-ipc-mock SYSTEM INTERFACE mock priv_include)
+    target_compile_definitions(ggl-ipc-mock PUBLIC "GGL_MODULE=(\"ggl-test\")")
+    target_link_libraries(ggl-ipc-mock PRIVATE ggl-sdk m)
+
+    file(GLOB TEST_DIRS CONFIGURE_DEPENDS "test/*")
+    foreach(test_dir ${TEST_DIRS})
+      if(NOT IS_DIRECTORY ${test_dir})
+        continue()
+      endif()
+      get_filename_component(test_name ${test_dir} NAME_WLE)
+      set_property(
+        SOURCE ${test_dir}/main.c
+        APPEND_STRING
+        PROPERTY COMPILE_FLAGS "-frandom-seed=${test_dir}/main.c")
+      add_executable(test_${test_name} ${test_dir}/main.c)
+      target_link_libraries(test_${test_name} PRIVATE ggl-sdk ggl-ipc-mock
+                                                      PkgConfig::unity)
+      target_compile_options(test_${test_name} PRIVATE)
+      target_link_options(test_${test_name} PUBLIC)
+      install(TARGETS test_${test_name})
+      add_test(test_${test_name} ${CMAKE_INSTALL_BINDIR}/test_${test_name})
     endforeach()
   endif()
 endif()

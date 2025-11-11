@@ -4,6 +4,7 @@ cbmc
 condvar
 coverity
 dfcc
+epollfd
 EPOLLIN
 fileb
 ggipc
