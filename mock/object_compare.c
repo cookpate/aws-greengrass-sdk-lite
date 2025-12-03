@@ -13,11 +13,11 @@ static void print_state(const IterLevels state[static 1]) {
     for (uint8_t i = state->index; i > 0; --i) {
         switch (state->state[i - 1]) {
         case LEVEL_LIST: {
-            GG_LOGE("In list (idx = %d).", (int) state->elem_index[i]);
+            GG_LOGE("In list (idx = %d).", (int) state->elem_index[i - 1]);
         } break;
         case LEVEL_MAP: {
-            GgMap map = gg_obj_into_map(*state->obj[i]);
-            GgBuffer key = gg_kv_key(map.pairs[state->elem_index[i]]);
+            GgMap map = gg_obj_into_map(*state->obj[i - i]);
+            GgBuffer key = gg_kv_key(map.pairs[state->elem_index[i - 1]]);
             GG_LOGE("In map (key = \"%.*s\").", (int) key.len, key.data);
         } break;
         default:

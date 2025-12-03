@@ -62,14 +62,20 @@ if(aws-greengrass-component-sdk_IS_TOP_LEVEL)
         continue()
       endif()
       get_filename_component(test_name ${test_dir} NAME_WLE)
-      set_property(
-        SOURCE ${test_dir}/main.cpp
-        APPEND_STRING
-        PROPERTY COMPILE_FLAGS "-frandom-seed=${test_dir}/main.cpp")
-      add_executable(test_cpp_${test_name} ${test_dir}/main.cpp)
-      target_link_libraries(test_cpp_${test_name} PRIVATE gg-sdk++ gg-ipc-mock
-                                                          PkgConfig::unity)
-      install(TARGETS test_cpp_${test_name})
+      file(GLOB_RECURSE TEST_SRCS CONFIGURE_DEPENDS ${test_dir}/*.cpp)
+      foreach(src ${TEST_SRCS})
+        set_property(
+          SOURCE ${src}
+          APPEND_STRING
+          PROPERTY COMPILE_FLAGS "-frandom-seed=${src}")
+      endforeach()
+      add_executable(cpp_${test_name}_tests ${TEST_SRCS})
+      target_link_libraries(
+        cpp_${test_name}_tests PRIVATE gg-sdk++ gg-sdk gg-ipc-mock unity-config
+                                       unity)
+      install(TARGETS cpp_${test_name}_tests)
+      add_test(cpp_${test_name}_tests
+               ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/cpp_${test_name}_tests)
     endforeach()
   endif()
 endif()

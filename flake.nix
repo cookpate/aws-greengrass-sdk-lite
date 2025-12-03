@@ -20,18 +20,29 @@
             ./mock
             ./samples
             ./test
+            ./unity_config
             ./cpp/CMakeLists.txt
             ./cpp/include
             ./cpp/priv_include
             ./cpp/src
+            ./cpp/test
             ./cpp/.clang-tidy
             ./cpp/samples
+            ./fc_deps.json
           ];
         };
 
         llvmStdenv = pkgs: pkgs.overrideCC pkgs.llvmPackages_latest.stdenv
           (pkgs.llvmPackages_latest.stdenv.cc.override
             { inherit (pkgs.llvmPackages_latest) bintools; });
+
+        deps = pkgs: lib.mapAttrs
+          (_: v: pkgs.fetchgit (v // { fetchSubmodules = true; }))
+          (builtins.fromJSON (builtins.readFile ./fc_deps.json));
+
+        fetchContentFlags = pkgs: lib.mapAttrsToList
+          (n: v: "-DFETCHCONTENT_SOURCE_DIR_${lib.toUpper n}=${v}")
+          (deps pkgs);
       in
       {
         inherit inputs;
@@ -45,8 +56,6 @@
             cmake
             cbmc
             cargo
-            pkg-config
-            unity-test
             rustc
             rustPlatform.bindgenHook
             llvmPackages_latest.clang
@@ -207,15 +216,15 @@
                 allowSubstitutes = false;
               };
 
-            unit-tests = { stdenv, unity-test, cmake, pkg-config, ninja, ... }:
+            unit-tests = { pkgs, stdenv, git, cmake, ninja, ... }:
               stdenv.mkDerivation {
                 name = "check-unity-tests";
                 src = filteredSrc;
-                nativeBuildInputs = [ cmake pkg-config unity-test ninja ];
+                nativeBuildInputs = [ git cmake ninja ];
                 cmakeBuildType = "MinSizeRel";
-                cmakeFlags = [ "-DBUILD_TESTING=1" ];
+                cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DBUILD_TESTING=1" "-DBUILD_SAMPLES=0" ];
                 postBuild = ''
-                  ctest --output-on-failure
+                  ctest --verbose
                 '';
                 installPhase = "touch $out";
               };
