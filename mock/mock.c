@@ -1,7 +1,5 @@
 #include "gg/ipc/mock.h"
 #include "gg/object_compare.h"
-#include "inttypes.h"
-#include "sys/epoll.h"
 #include <assert.h>
 #include <errno.h>
 #include <gg/arena.h>
@@ -24,21 +22,52 @@
 #include <gg/object_visit.h>
 #include <gg/socket.h>
 #include <gg/socket_epoll.h>
+#include <gg/vector.h>
+#include <inttypes.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#define EVENSTREAM_MAX_HEADER_COUNT 50
+#include <stdlib.h>
 
 static uint8_t ipc_recv_mem[GG_IPC_MAX_MSG_LEN];
 static uint8_t ipc_recv_decode_mem[sizeof(GgObject[GG_MAX_OBJECT_SUBOBJECTS])];
 
+static uint8_t ipc_socket_path[PATH_MAX];
+static GgBuffer ipc_socket_path_buf;
+static uint8_t ipc_auth_token[256];
+static GgBuffer ipc_auth_token_buf;
+
 static int sock_fd = -1;
 static int epoll_fd = -1;
 static int client_fd = -1;
+
+static GgError configure_client_timeout(int socket_fd, int client_timeout) {
+    if (client_timeout < 0) {
+        client_timeout = 5;
+    }
+
+    // To prevent deadlocking on hanged client, add a timeout
+    struct timeval timeout = { .tv_sec = client_timeout };
+    int sys_ret = setsockopt(
+        socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)
+    );
+    if (sys_ret == -1) {
+        GG_LOGE("Failed to set receive timeout on socket: %d.", errno);
+        return GG_ERR_FATAL;
+    }
+    sys_ret = setsockopt(
+        socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)
+    );
+    if (sys_ret == -1) {
+        GG_LOGE("Failed to set send timeout on socket: %d.", errno);
+        return GG_ERR_FATAL;
+    }
+    return GG_ERR_OK;
+}
 
 static GgError configure_server_socket(
     int socket_fd, GgBuffer path, mode_t mode
@@ -119,12 +148,46 @@ static GgError gg_socket_open(GgBuffer path, mode_t mode, int *socket_fd) {
 }
 
 GgError gg_test_setup_ipc(
-    const char *path, mode_t mode, int *handle, const char *auth_token
+    const char *socket_path_prefix,
+    mode_t mode,
+    int *handle,
+    const char *auth_token
 ) {
-    int socket_fd = -1;
-    GgError ret = gg_socket_open(
-        gg_buffer_from_null_term((char *) path), mode, &socket_fd
+    GgError ret = GG_ERR_OK;
+    GgByteVec auth_vec = gg_byte_vec_init(GG_BUF(ipc_auth_token));
+    gg_byte_vec_chain_append(
+        &ret, &auth_vec, gg_buffer_from_null_term((char *) auth_token)
     );
+    gg_byte_vec_chain_push(&ret, &auth_vec, '\0');
+    if (ret != GG_ERR_OK) {
+        GG_LOGE("Failed to store auth token");
+        return GG_ERR_NOMEM;
+    }
+    auth_vec.buf.len -= 1;
+
+    GgBuffer socket_path_buf
+        = gg_buffer_from_null_term((char *) socket_path_prefix);
+    GgByteVec socket_vec = gg_byte_vec_init(GG_BUF(ipc_socket_path));
+    gg_byte_vec_chain_append(&ret, &socket_vec, socket_path_buf);
+    gg_byte_vec_chain_append(&ret, &socket_vec, GG_STR("_XXXXXX\0"));
+    if (ret != GG_ERR_OK) {
+        GG_LOGE("Failed to template socket dir");
+        return ret;
+    }
+    if (mkdtemp((char *) socket_vec.buf.data) == NULL) {
+        GG_LOGE("Failed to create socket dir");
+        return GG_ERR_FAILURE;
+    }
+    socket_vec.buf.len -= 1;
+    gg_byte_vec_chain_append(&ret, &socket_vec, GG_STR("/socket.ipc\0"));
+    if (ret != GG_ERR_OK) {
+        GG_LOGE("Failed to template socket path");
+        return ret;
+    }
+    socket_vec.buf.len -= 1;
+
+    int socket_fd = 1;
+    ret = gg_socket_open(socket_vec.buf, mode, &socket_fd);
     if (ret != GG_ERR_OK) {
         return ret;
     }
@@ -150,20 +213,36 @@ GgError gg_test_setup_ipc(
     // test setup code should be called before creating any threads
     // NOLINTBEGIN(concurrency-mt-unsafe)
     int setenv_ret = setenv(
-        "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT", path, true
+        "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT",
+        (char *) socket_vec.buf.data,
+        true
     );
     if (setenv_ret != 0) {
         GG_LOGE("Failed to set socket environment variable: %d.", errno);
         return GG_ERR_FAILURE;
     }
 
-    setenv_ret = setenv("SVCUID", auth_token, true);
+    setenv_ret = setenv("SVCUID", (char *) auth_vec.buf.data, true);
     if (setenv_ret != 0) {
         GG_LOGE("Failed to set auth token environment variable: %d.", errno);
         return GG_ERR_FAILURE;
     }
     // NOLINTEND(concurrency-mt-unsafe)
 
+    ipc_socket_path_buf = socket_vec.buf;
+    ipc_auth_token_buf = auth_vec.buf;
+    GG_LOGI(
+        "Socket path: (%zu):%.*s",
+        ipc_socket_path_buf.len,
+        (int) ipc_socket_path_buf.len,
+        ipc_socket_path_buf.data
+    );
+    GG_LOGI(
+        "Auth token: (%zu):%.*s",
+        ipc_auth_token_buf.len,
+        (int) ipc_auth_token_buf.len,
+        ipc_auth_token_buf.data
+    );
     return GG_ERR_OK;
 }
 
@@ -178,7 +257,11 @@ static GgError gg_test_send_packet(const GgipcPacket *packet, int client) {
     if (ret != GG_ERR_OK) {
         return ret;
     }
-    return gg_socket_write(client, packet_bytes);
+    ret = gg_socket_write(client, packet_bytes);
+    if (ret != GG_ERR_OK) {
+        GG_LOGE("Failed to send server->client packet");
+    }
+    return ret;
 }
 
 static GgError find_header_int(
@@ -280,6 +363,7 @@ static GgError gg_test_recv_packet(const GgipcPacket *packet, int client) {
     GgError ret
         = eventsteam_get_packet(gg_socket_reader(&client), &msg, packet_bytes);
     if (ret != GG_ERR_OK) {
+        GG_LOGE("Failed to read a packet from %d (%d)", client, (int) ret);
         return ret;
     }
 
@@ -292,7 +376,7 @@ static GgError gg_test_recv_packet(const GgipcPacket *packet, int client) {
         );
     }
 
-    for (EventStreamHeader *header = packet->headers;
+    for (const EventStreamHeader *header = packet->headers;
          header < &packet->headers[packet->header_count];
          ++header) {
         GgBuffer key = header->name;
@@ -353,15 +437,15 @@ static GgError gg_test_recv_packet(const GgipcPacket *packet, int client) {
     return GG_ERR_OK;
 }
 
-GgError gg_test_expect_packet_sequence(
-    GgipcPacketSequence sequence, int client_timeout, int handle
-) {
+GgError gg_test_accept_client(int client_timeout, int handle) {
     assert(handle > 0);
-    assert(sock_fd >= 0);
-    assert(epoll_fd >= 0);
-
-    if (client_timeout < 5) {
+    if (client_timeout <= 0) {
         client_timeout = 5;
+    }
+
+    if (client_fd >= 0) {
+        (void) gg_close(client_fd);
+        client_fd = -1;
     }
 
     struct epoll_event events[1];
@@ -377,40 +461,53 @@ GgError gg_test_expect_packet_sequence(
         GG_LOGE("Failed to wait for test client connect (%d).", errno);
         return GG_ERR_TIMEOUT;
     }
+    if (epoll_ret == 0) {
+        GG_LOGE("Client exited before connecting.");
+        return GG_ERR_TIMEOUT;
+    }
     struct sockaddr_un addr = { .sun_family = AF_UNIX, .sun_path = { 0 } };
     socklen_t len = sizeof(addr);
-    client_fd = accept(sock_fd, &addr, &len);
+    do {
+        client_fd = accept(sock_fd, &addr, &len);
+    } while ((client_fd == -1) && (errno == EINTR));
     if (client_fd < 0) {
         GG_LOGE("Failed to accept test client.");
         return GG_ERR_TIMEOUT;
     }
-    // To prevent deadlocking on hanged client, add a timeout
-    struct timeval timeout = { .tv_sec = client_timeout };
-    int sys_ret = setsockopt(
-        client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)
-    );
-    if (sys_ret == -1) {
-        GG_LOGE("Failed to set receive timeout on socket: %d.", errno);
-        return GG_ERR_FATAL;
-    }
-    sys_ret = setsockopt(
-        client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)
-    );
-    if (sys_ret == -1) {
-        GG_LOGE("Failed to set send timeout on socket: %d.", errno);
-        return GG_ERR_FATAL;
+
+    return GG_ERR_OK;
+}
+
+GgError gg_test_expect_packet_sequence(
+    GgipcPacketSequence sequence, int client_timeout, int handle
+) {
+    assert(handle > 0);
+
+    if (client_timeout <= 0) {
+        client_timeout = 5;
     }
 
-    GG_LOGD("Awaiting sequence of %zu packets.", sequence.len);
+    if (client_fd < 0) {
+        GgError ret = gg_test_accept_client(client_timeout, handle);
+        if (ret != GG_ERR_OK) {
+            return ret;
+        }
+    }
+
+    GgError ret = configure_client_timeout(client_fd, client_timeout);
+    if (ret != GG_ERR_OK) {
+        return ret;
+    }
+
+    GG_LOGI("Awaiting sequence of %zu packets.", sequence.len);
     GG_PACKET_SEQUENCE_FOREACH(packet, sequence) {
         if (packet->direction == 0) {
-            GgError ret = gg_test_recv_packet(packet, client_fd);
+            ret = gg_test_recv_packet(packet, client_fd);
             if (ret != GG_ERR_OK) {
-                GG_LOGE("Failed to receive a packet.");
                 return ret;
             }
         } else {
-            GgError ret = gg_test_send_packet(packet, client_fd);
+            ret = gg_test_send_packet(packet, client_fd);
             if (ret != GG_ERR_OK) {
                 GG_LOGE("Failed to send a packet.");
                 return ret;
@@ -424,13 +521,61 @@ GgError gg_test_expect_packet_sequence(
 GgError gg_test_disconnect(int handle) {
     assert(handle > 0);
     if (client_fd < 0) {
-        GG_LOGE("Client not connected.");
         return GG_ERR_NOENTRY;
     }
 
     int old_client_fd = client_fd;
     client_fd = -1;
     return gg_close(old_client_fd);
+}
+
+GgError gg_test_wait_for_client_disconnect(int client_timeout, int handle) {
+    assert(handle > 0);
+    if (client_fd < 0) {
+        return GG_ERR_NOENTRY;
+    }
+    GgError ret = configure_client_timeout(client_fd, client_timeout);
+    if (ret != GG_ERR_OK) {
+        return ret;
+    }
+
+    GgBuffer recv_buf = GG_BUF(ipc_recv_mem);
+    ret = gg_file_read(client_fd, &recv_buf);
+    if (ret != GG_ERR_OK) {
+        return ret;
+    }
+    if (recv_buf.len > 0) {
+        GG_LOGE(
+            "Client %d did not disconnect or sent data after none was expected.",
+            client_fd
+        );
+        return GG_ERR_FAILURE;
+    }
+
+    return gg_test_disconnect(handle);
+}
+
+static void remove_temp_files(void) {
+    if (ipc_socket_path_buf.len == 0) {
+        return;
+    }
+
+    (void) unlink((char *) ipc_socket_path_buf.data);
+
+    size_t split = ipc_socket_path_buf.len;
+
+    for (; split > 0; --split) {
+        if (ipc_socket_path_buf.data[split - 1] == '/') {
+            ipc_socket_path_buf.data[split - 1] = '\0';
+            break;
+        }
+    }
+    ipc_auth_token_buf.len = split;
+    if (split > 0) {
+        (void) rmdir((char *) ipc_socket_path_buf.data);
+    }
+
+    ipc_socket_path_buf = (GgBuffer) { 0 };
 }
 
 void gg_test_close(int handle) {
@@ -447,4 +592,13 @@ void gg_test_close(int handle) {
         (void) gg_close(sock_fd);
         sock_fd = -1;
     }
+    remove_temp_files();
+}
+
+GgBuffer gg_test_get_socket_path(void) {
+    return ipc_socket_path_buf;
+};
+
+GgBuffer gg_test_get_auth_token(void) {
+    return ipc_auth_token_buf;
 }

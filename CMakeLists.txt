@@ -24,8 +24,44 @@ if(PROJECT_IS_TOP_LEVEL)
   include(GNUInstallDirs)
 
   if(BUILD_TESTING)
-    find_package(PkgConfig REQUIRED)
-    pkg_search_module(unity REQUIRED IMPORTED_TARGET unity)
+    #
+    # FetchContent deps
+    #
+
+    set(FETCHCONTENT_QUIET FALSE)
+    include(FetchContent)
+
+    file(READ fc_deps.json FC_DEPS_JSON)
+    string(JSON FC_DEPS_COUNT LENGTH "${FC_DEPS_JSON}")
+    math(EXPR FC_DEPS_INDEX_MAX "${FC_DEPS_COUNT} - 1")
+    foreach(index RANGE ${FC_DEPS_INDEX_MAX})
+      string(JSON dep_name MEMBER "${FC_DEPS_JSON}" ${index})
+      string(JSON dep_url GET "${FC_DEPS_JSON}" "${dep_name}" url)
+      string(JSON dep_rev GET "${FC_DEPS_JSON}" "${dep_name}" rev)
+      fetchcontent_declare(
+        "${dep_name}"
+        GIT_REPOSITORY "${dep_url}"
+        GIT_TAG "${dep_rev}"
+        SOURCE_SUBDIR nonexistent_dir)
+      fetchcontent_makeavailable(${dep_name})
+    endforeach()
+
+    set(UNITY_CONFIG_INCLUDE_DIR
+        ${CMAKE_CURRENT_SOURCE_DIR}/unity_config/include/unity)
+    add_subdirectory(${unity_SOURCE_DIR} unity)
+    target_include_directories(
+      unity PUBLIC $<BUILD_INTERFACE:${UNITY_CONFIG_INCLUDE_DIR}>
+                   $<INSTALL_INTERFACE:unity_config/include/unity>)
+    file(GLOB_RECURSE UNITY_CFG_SRCS CONFIGURE_DEPENDS "unity_config/*.c")
+    add_library(unity-config STATIC ${UNITY_CFG_SRCS})
+    target_include_directories(unity-config PUBLIC unity_config/include/unity)
+    target_include_directories(unity-config SYSTEM
+                               INTERFACE unity_config/include)
+    target_include_directories(unity-config PRIVATE priv_include
+                                                    unity_config/include)
+    target_compile_definitions(unity PUBLIC "UNITY_INCLUDE_CONFIG_H=1")
+    target_compile_definitions(unity-config PUBLIC "UNITY_INCLUDE_CONFIG_H=1")
+    target_link_libraries(unity-config PRIVATE unity gg-sdk gg-ipc-mock)
   endif()
 
   # Put outputs in build/bin and build/lib
@@ -231,7 +267,7 @@ if(PROJECT_IS_TOP_LEVEL)
     target_compile_definitions(gg-ipc-mock PRIVATE _GNU_SOURCE)
     target_include_directories(gg-ipc-mock PRIVATE mock include priv_include)
     target_include_directories(gg-ipc-mock SYSTEM INTERFACE mock priv_include)
-    target_compile_definitions(gg-ipc-mock PUBLIC "GG_MODULE=(\"gg-test\")")
+    target_compile_definitions(gg-ipc-mock PRIVATE "GG_MODULE=(\"gg-test\")")
     target_link_libraries(gg-ipc-mock PRIVATE gg-sdk m)
 
     file(GLOB TEST_DIRS CONFIGURE_DEPENDS "test/*")
@@ -240,17 +276,20 @@ if(PROJECT_IS_TOP_LEVEL)
         continue()
       endif()
       get_filename_component(test_name ${test_dir} NAME_WLE)
-      set_property(
-        SOURCE ${test_dir}/main.c
-        APPEND_STRING
-        PROPERTY COMPILE_FLAGS "-frandom-seed=${test_dir}/main.c")
-      add_executable(test_${test_name} ${test_dir}/main.c)
-      target_link_libraries(test_${test_name} PRIVATE gg-sdk gg-ipc-mock
-                                                      PkgConfig::unity)
-      target_compile_options(test_${test_name} PRIVATE)
-      target_link_options(test_${test_name} PUBLIC)
-      install(TARGETS test_${test_name})
-      add_test(test_${test_name} ${CMAKE_INSTALL_BINDIR}/test_${test_name})
+      file(GLOB_RECURSE TEST_SRCS CONFIGURE_DEPENDS ${test_dir}/*.c)
+      foreach(src ${TEST_SRCS})
+        set_property(
+          SOURCE ${src}
+          APPEND_STRING
+          PROPERTY COMPILE_FLAGS "-frandom-seed=${src}")
+      endforeach()
+      add_executable(c_${test_name}_tests ${TEST_SRCS})
+      target_link_libraries(
+        c_${test_name}_tests PRIVATE gg-sdk++ gg-sdk gg-ipc-mock unity-config
+                                     unity)
+      install(TARGETS c_${test_name}_tests)
+      add_test(c_${test_name}_tests
+               ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/c_${test_name}_tests)
     endforeach()
   endif()
 endif()
