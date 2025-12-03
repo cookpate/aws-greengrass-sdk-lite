@@ -97,4 +97,22 @@ GgipcPacket gg_test_connect_ack_packet(void);
 /// server->client generic ServiceError response
 GgipcPacket gg_test_ipc_service_error_packet(int32_t stream_id);
 
+/// client->server PublishToIotCore request
+GgipcPacket gg_test_mqtt_publish_request_packet(
+    int32_t stream_id, GgBuffer topic, GgBuffer payload_base64, GgBuffer qos
+);
+
+/// server->client successful PublishToIotCore response
+GgipcPacket gg_test_mqtt_publish_accepted_packet(int32_t stream_id);
+
+GgipcPacket gg_test_mqtt_subscribe_request_packet(
+    int32_t stream_id, GgBuffer topic, GgBuffer qos
+);
+
+GgipcPacket gg_test_mqtt_subscribe_accepted_packet(int32_t stream_id);
+
+GgipcPacket gg_test_mqtt_message_packet(
+    int32_t stream_id, GgBuffer topic, GgBuffer payload_base64
+);
+
 #endif
