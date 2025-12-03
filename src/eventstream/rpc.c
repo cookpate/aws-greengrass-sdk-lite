@@ -20,6 +20,7 @@ GgError eventsteam_get_packet(
 
     GgError ret = gg_reader_call_exact(input, prelude_buf);
     if (ret != GG_ERR_OK) {
+        GG_LOGE("Failed to receive EventStream prelude.");
         return ret;
     }
 
